@@ -239,11 +239,11 @@ const TARGET_HOUR = 20;
 const TARGET_MINUTE = 10;  
 const UTC_OFFSET = 3;     
 
-const FINKA_TARGET_HOUR = 21;    
-const FINKA_TARGET_MINUTE = 10;  
+const FINKA_TARGET_HOUR = 9;    
+const FINKA_TARGET_MINUTE = 45;  
 const FINKA_MENTION_ROLE_ID = '1476426854482317332';
 const FINKA_ALLOWED_ROLES = ['1476427128462512229', '1476426854482317332'];
-const FINKA_CHART_CHANNEL_ID = '1400564274132160533';
+const FINKA_CHART_CHANNEL_ID = '1475812136424050738';
 
 /**
  * ==============================================================================
