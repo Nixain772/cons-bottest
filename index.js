@@ -230,8 +230,8 @@ const ADMIN_ROLES = [
 
 const DEVELOPER_ID = '915665525634375710'; // ID разработчика для команды /sb
 
-const TARGET_HOUR = 16;    
-const TARGET_MINUTE = 51;  
+const TARGET_HOUR = 17;    
+const TARGET_MINUTE = 10;  
 const UTC_OFFSET = 3;     
 
 const FINKA_TARGET_HOUR = 23;    
