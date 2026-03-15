@@ -186,10 +186,6 @@ http.createServer((req, res) => {
                 <h3>☁️ Приватки</h3>
                 <p>Гибкое управление личными голосовыми каналами.</p>
             </div>
-            <div class="feature-card">
-                <h3>🏆 Баллы</h3>
-                <p>Система мотивации и учета активности участников.</p>
-            </div>
         </div>
 
         <a href="https://discord.com/oauth2/authorize?client_id=1465229870215725236&permissions=8&integration_type=0&scope=bot" class="btn">Добавить на сервер</a>
@@ -215,17 +211,16 @@ http.createServer((req, res) => {
  * ==============================================================================
  */
 const ALLOWED_GUILDS = ['1465230913473478710', '1096080921427443832']; 
-const POINTS_GUILD_ID = '1465230913473478710'; // ID сервера для системы баллов
 const AUTO_ROLE_ID = '1391087961088721047'; 
 const MAIN_CHANNEL_ID = '1426174226464899163'; 
-const MENTION_ROLE_ID = '1426222945705001262'; 
+const MENTION_ROLE_ID = '1482734579214450809'; 
 const WELCOME_CHANNEL_ID = '1391856427508830289'; 
 const LOG_CHANNEL_ID = '1407346843372752927'; 
 const LOG_RECIPIENT_ID = '915665525634375710'; 
 const FKICK_LOG_CHANNEL_ID = '1475480065578897550'; 
 
 const PRIVATE_CATEGORY_ID = '1464990614025408635';
-let voiceTriggerId = '1464990615535222936'; 
+let voiceTriggerId = '1477572106710679623'; 
 
 const ADMIN_ROLES = [
     '1439024334491357325', '1096373072887566348', 
@@ -235,15 +230,15 @@ const ADMIN_ROLES = [
 
 const DEVELOPER_ID = '915665525634375710'; // ID разработчика для команды /sb
 
-const TARGET_HOUR = 20;    
-const TARGET_MINUTE = 10;  
+const TARGET_HOUR = 16;    
+const TARGET_MINUTE = 45;  
 const UTC_OFFSET = 3;     
 
-const FINKA_TARGET_HOUR = 9;    
-const FINKA_TARGET_MINUTE = 45;  
-const FINKA_MENTION_ROLE_ID = '1476426854482317332';
-const FINKA_ALLOWED_ROLES = ['1476427128462512229', '1476426854482317332'];
-const FINKA_CHART_CHANNEL_ID = '1475812136424050738';
+const FINKA_TARGET_HOUR = 23;    
+const FINKA_TARGET_MINUTE = 10;  
+const FINKA_MENTION_ROLE_ID = '1465231255116189811';
+const FINKA_ALLOWED_ROLES = ['1465231255116189811', '1465231255116189811'];
+const FINKA_CHART_CHANNEL_ID = '1476625883744702694';
 
 /**
  * ==============================================================================
@@ -257,16 +252,6 @@ const finkaSchema = new mongoose.Schema({
 });
 
 const FinkaModel = mongoose.model('FinkaData', finkaSchema);
-
-// --- POINTS SCHEMA ---
-const pointsSchema = new mongoose.Schema({
-    userId: { type: String, required: true },
-    guildId: { type: String, required: true },
-    points: { type: Number, default: 0 }
-});
-pointsSchema.index({ userId: 1, guildId: 1 }, { unique: true });
-
-const PointsModel = mongoose.model('Points', pointsSchema);
 
 // --- FINKA VARIABLES ---
 let lastPayMessageId = null;
@@ -294,31 +279,6 @@ async function saveFinkaData() {
         console.log("💾 Данные сохранены в MongoDB");
     } catch (e) {
         console.error("❌ Ошибка сохранения данных:", e);
-    }
-}
-
-// --- POINTS FUNCTIONS ---
-async function getUserPoints(userId, guildId) {
-    try {
-        const data = await PointsModel.findOne({ userId, guildId });
-        return data ? data.points : 0;
-    } catch (e) {
-        console.error("Error fetching points:", e);
-        return 0;
-    }
-}
-
-async function updateUserPoints(userId, guildId, amount) {
-    try {
-        const data = await PointsModel.findOneAndUpdate(
-            { userId, guildId },
-            { $inc: { points: amount } },
-            { upsert: true, new: true }
-        );
-        return data.points;
-    } catch (e) {
-        console.error("Error updating points:", e);
-        return null;
     }
 }
 
@@ -623,20 +583,6 @@ client.once(Events.ClientReady, async (c) => {
                     { name: '❌ Не оплатил', value: '❌ Не оплатил' }
                 )),
         new SlashCommandBuilder()
-            .setName('points')
-            .setDescription('Посмотреть количество баллов')
-            .addUserOption(o => o.setName('user').setDescription('Выберите пользователя (необязательно)')),
-        new SlashCommandBuilder()
-            .setName('add_points')
-            .setDescription('Добавить баллы пользователю (Админ)')
-            .addUserOption(o => o.setName('user').setDescription('Пользователь').setRequired(true))
-            .addIntegerOption(o => o.setName('amount').setDescription('Количество').setRequired(true)),
-        new SlashCommandBuilder()
-            .setName('remove_points')
-            .setDescription('Снять баллы у пользователя (Админ)')
-            .addUserOption(o => o.setName('user').setDescription('Пользователь').setRequired(true))
-            .addIntegerOption(o => o.setName('amount').setDescription('Количество').setRequired(true)),
-        new SlashCommandBuilder()
             .setName('send_script')
             .setDescription('whoinwell')
             .addAttachmentOption(o => o.setName('file').setDescription('Файл скрипта').setRequired(true))
@@ -708,7 +654,7 @@ client.once(Events.ClientReady, async (c) => {
 
     const statuses = [
         { name: 'consequence fam', type: ActivityType.Playing },
-        { name: 'obc', type: ActivityType.Listening }
+        { name: 'consequence fam', type: ActivityType.Listening }
     ];
     let si = 0;
     setInterval(() => {
@@ -1039,26 +985,6 @@ client.on(Events.InteractionCreate, async (i) => {
             return;
         }
 
-        if (i.commandName === 'points') {
-            const user = i.options.getUser('user') || i.user;
-            const pts = await getUserPoints(user.id, i.guildId);
-            await i.reply({ content: `💰 У пользователя <@${user.id}> сейчас **${pts}** баллов.` });
-            return;
-        }
-
-        if (['add_points', 'remove_points'].includes(i.commandName)) {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ У вас нет доступа.', flags: [MessageFlags.Ephemeral] });
-
-            const user = i.options.getUser('user');
-            const amount = i.options.getInteger('amount');
-            const finalAmount = i.commandName === 'add_points' ? amount : -amount;
-
-            const newTotal = await updateUserPoints(user.id, i.guildId, finalAmount);
-            await i.reply({ content: `✅ Баллы обновлены. Теперь у <@${user.id}> **${newTotal}** баллов.` });
-            return;
-        }
-
         if (i.commandName === 'pay_list') {
             const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
             if (!isAdmin) return i.reply({ content: '⛔ Нет доступа.', flags: [MessageFlags.Ephemeral] });
@@ -1168,14 +1094,22 @@ client.on(Events.InteractionCreate, async (i) => {
                 const embed = msg.embeds[0];
                 const field = embed.fields.find(f => f.name === 'Список участников:');
                 
-                let users = field.value.split('\n').filter(line => line !== 'Пока никого...');
-                const newUsers = users.filter(line => !line.includes(target.id)).map(line => line.replace(/^\d+\.\s*/, ''));
+                let users = [];
+                if (field.value !== 'Пока никого...') {
+                    users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
+                }
 
                 const maxSlots = parseInt(msg.components[0].components[0].customId.split('_')[1]);
+                
+                // Освобождаем слот удаляемого игрока
+                const newUsers = users.map(line => line.includes(target.id) ? 'Свободно' : line);
+                const usersCount = newUsers.filter(u => u !== 'Свободно').length;
+                const finalUsers = usersCount === 0 ? [] : newUsers;
+
                 const emoji = msg.components[0].components[0].emoji;
                 const label = msg.components[0].components[0].label;
 
-                const newData = createPickEmbed(newUsers.length, newUsers, maxSlots, embed.description, label, emoji);
+                const newData = createPickEmbed(usersCount, finalUsers, maxSlots, embed.description, label, emoji);
                 await msg.edit(newData);
                 await i.reply({ content: `✅ <@${target.id}> удален из сбора.`, flags: [MessageFlags.Ephemeral] });
             } catch (e) {
@@ -1272,19 +1206,41 @@ client.on(Events.InteractionCreate, async (i) => {
             }
 
             const field = embed.fields.find(f => f.name === 'Список участников:');
-            let users = field.value.split('\n').filter(line => line !== 'Пока никого...').map(line => line.replace(/^\d+\.\s*/, ''));
+            let users = [];
+            if (field.value !== 'Пока никого...') {
+                users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
+            }
+
+            // Дополняем массив до количества слотов
+            while (users.length < maxSlots) {
+                users.push('Свободно');
+            }
 
             if (users.some(line => line.includes(i.user.id))) {
                 return i.reply({ content: 'Вы уже записаны!', flags: [MessageFlags.Ephemeral] });
             }
 
-            users.push(`<@${i.user.id}>`);
+            // Поиск доступных слотов
+            let availableIndexes = [];
+            users.forEach((u, idx) => {
+                if (u === 'Свободно') availableIndexes.push(idx);
+            });
+
+            if (availableIndexes.length === 0) {
+                return i.reply({ content: 'Все места заняты!', flags: [MessageFlags.Ephemeral] });
+            }
+
+            // Выбор случайного слота
+            const randomIdx = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
+            users[randomIdx] = `<@${i.user.id}>`;
+
+            const usersCount = users.filter(u => u !== 'Свободно').length;
             const label = i.message.components[0].components[0].label;
             const emoji = i.message.components[0].components[0].emoji;
 
-            const newData = createPickEmbed(users.length, users, maxSlots, embed.description, label, emoji);
+            const newData = createPickEmbed(usersCount, users, maxSlots, embed.description, label, emoji);
             await i.message.edit(newData);
-            await i.reply({ content: 'Вы успешно записались!', flags: [MessageFlags.Ephemeral] });
+            await i.reply({ content: `Вы успешно заняли слот #${randomIdx + 1}!`, flags: [MessageFlags.Ephemeral] });
             return;
         }
 
