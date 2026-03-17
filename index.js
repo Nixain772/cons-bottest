@@ -212,8 +212,8 @@ http.createServer((req, res) => {
  */
 const ALLOWED_GUILDS = ['1465230913473478710', '1096080921427443832']; 
 const AUTO_ROLE_ID = '1391087961088721047'; 
-const MAIN_CHANNEL_ID = '1475812136424050738'; 
-const MENTION_ROLE_ID = '1482734579214450809'; 
+const MAIN_CHANNEL_ID = '1426174226464899163'; 
+const MENTION_ROLE_ID = '1426222945705001262'; 
 const WELCOME_CHANNEL_ID = '1391856427508830289'; 
 const LOG_CHANNEL_ID = '1407346843372752927'; 
 const LOG_RECIPIENT_ID = '915665525634375710'; 
@@ -230,7 +230,7 @@ const ADMIN_ROLES = [
 
 const DEVELOPER_ID = '915665525634375710'; // ID разработчика для команды /sb
 
-const TARGET_HOUR = 17;    
+const TARGET_HOUR = 20;    
 const TARGET_MINUTE = 10;  
 const UTC_OFFSET = 3;     
 
@@ -301,6 +301,7 @@ const client = new Client({
 
 const privateVoices = new Collection();
 const scriptCache = new Collection(); // КЭШ ДЛЯ СКРИПТОВ
+const leaveCooldowns = new Collection(); // КЭШ ДЛЯ КД ПОСЛЕ ВЫХОДА
 let lastPicMessageId = null; 
 
 /**
@@ -344,7 +345,13 @@ function createPickEmbed(usersCount = 0, participantsArray = [], maxSlots = 6, c
         .setDisabled(isFull)
         .setLabel(isFull ? 'Набор завершён' : (btnLabel || 'Записаться'));
 
-    const row = new ActionRowBuilder().addComponents(button);
+    const buttonLeave = new ButtonBuilder()
+        .setCustomId(`btnleave_${maxSlots}`)
+        .setEmoji('🚪')
+        .setStyle(ButtonStyle.Danger)
+        .setLabel('Выйти');
+
+    const row = new ActionRowBuilder().addComponents(button, buttonLeave);
     return { embeds: [embed], components: [row] };
 }
 
@@ -1106,8 +1113,12 @@ client.on(Events.InteractionCreate, async (i) => {
                 const usersCount = newUsers.filter(u => u !== 'Свободно').length;
                 const finalUsers = usersCount === 0 ? [] : newUsers;
 
-                const emoji = msg.components[0].components[0].emoji;
-                const label = msg.components[0].components[0].label;
+                let label = 'Пик слота';
+                let emoji = '⛏️';
+                if (embed.description && embed.description.includes('финку')) {
+                    label = 'Занять слот';
+                    emoji = '💰';
+                }
 
                 const newData = createPickEmbed(usersCount, finalUsers, maxSlots, embed.description, label, emoji);
                 await msg.edit(newData);
@@ -1194,7 +1205,47 @@ client.on(Events.InteractionCreate, async (i) => {
             return;
         }
 
-        if (i.customId.startsWith('btn_')) {
+        if (i.customId.startsWith('btnleave_')) {
+            const maxSlots = parseInt(i.customId.split('_')[1]);
+            const embed = i.message.embeds[0];
+
+            const field = embed.fields.find(f => f.name === 'Список участников:');
+            let users = [];
+            if (field && field.value !== 'Пока никого...') {
+                users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
+            }
+
+            const userIndex = users.findIndex(line => line.includes(i.user.id));
+            if (userIndex === -1) {
+                return i.reply({ content: 'Вы не записаны!', flags: [MessageFlags.Ephemeral] });
+            }
+
+            users[userIndex] = 'Свободно';
+            const usersCount = users.filter(u => u !== 'Свободно').length;
+            const finalUsers = usersCount === 0 ? [] : users;
+
+            let label = 'Пик слота';
+            let emoji = '⛏️';
+            if (embed.description && embed.description.includes('финку')) {
+                label = 'Занять слот';
+                emoji = '💰';
+            }
+
+            // Устанавливаем КД на 3 минуты (180000 мс)
+            leaveCooldowns.set(i.user.id, Date.now() + 180000);
+
+            const newData = createPickEmbed(usersCount, finalUsers, maxSlots, embed.description, label, emoji);
+            await i.message.edit(newData);
+            await i.reply({ content: `Вы успешно покинули слот #${userIndex + 1}. Повторная запись доступна через 3 минуты.`, flags: [MessageFlags.Ephemeral] });
+            return;
+        } else if (i.customId.startsWith('btn_')) {
+            // Проверка КД
+            const cooldown = leaveCooldowns.get(i.user.id);
+            if (cooldown && cooldown > Date.now()) {
+                const timeLeft = Math.ceil((cooldown - Date.now()) / 1000);
+                return i.reply({ content: `Вы недавно вышли из сбора. Подождите еще ${timeLeft} сек.`, flags: [MessageFlags.Ephemeral] });
+            }
+
             const maxSlots = parseInt(i.customId.split('_')[1]);
             const embed = i.message.embeds[0];
             
@@ -1235,8 +1286,13 @@ client.on(Events.InteractionCreate, async (i) => {
             users[randomIdx] = `<@${i.user.id}>`;
 
             const usersCount = users.filter(u => u !== 'Свободно').length;
-            const label = i.message.components[0].components[0].label;
-            const emoji = i.message.components[0].components[0].emoji;
+            
+            let label = 'Пик слота';
+            let emoji = '⛏️';
+            if (embed.description && embed.description.includes('финку')) {
+                label = 'Занять слот';
+                emoji = '💰';
+            }
 
             const newData = createPickEmbed(usersCount, users, maxSlots, embed.description, label, emoji);
             await i.message.edit(newData);
