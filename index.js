@@ -213,8 +213,8 @@ http.createServer((req, res) => {
  */
 const ALLOWED_GUILDS = ['1465230913473478710', '1096080921427443832']; 
 const AUTO_ROLE_ID = '1391087961088721047'; 
-const MAIN_CHANNEL_ID = '1476625883744702694'; 
-const MENTION_ROLE_ID = '1482734579214450809'; 
+const MAIN_CHANNEL_ID = '1426174226464899163'; 
+const MENTION_ROLE_ID = '1426222945705001262'; 
 const WELCOME_CHANNEL_ID = '1391856427508830289'; 
 const LOG_CHANNEL_ID = '1407346843372752927'; 
 const LOG_RECIPIENT_ID = '915665525634375710'; 
@@ -229,10 +229,10 @@ const ADMIN_ROLES = [
     '1426222521283510373'
 ]; 
 
-const DEVELOPER_ID = '915665525634375710'; // ID разработчика для команды /sb
+const DEVELOPER_ID = '915665525634375710'; 
 
 const TARGET_HOUR = 20;    
-const TARGET_MINUTE = 35;  
+const TARGET_MINUTE = 10;  
 const UTC_OFFSET = 3;     
 
 const FINKA_TARGET_HOUR = 23;    
@@ -246,7 +246,6 @@ const FINKA_CHART_CHANNEL_ID = '1476625883744702694';
  * 2.1 МОДЕЛЬ И РАБОТА С БАЗОЙ ДАННЫХ
  * ==============================================================================
  */
-// --- FINKA SCHEMA ---
 const finkaSchema = new mongoose.Schema({
     configId: { type: String, default: 'global' },
     lastPayMessageId: String
@@ -254,7 +253,6 @@ const finkaSchema = new mongoose.Schema({
 
 const FinkaModel = mongoose.model('FinkaData', finkaSchema);
 
-// --- FINKA VARIABLES ---
 let lastPayMessageId = null;
 
 async function loadFinkaData() {
@@ -301,8 +299,8 @@ const client = new Client({
 });
 
 const privateVoices = new Collection();
-const scriptCache = new Collection(); // КЭШ ДЛЯ СКРИПТОВ
-const leaveCooldowns = new Collection(); // КЭШ ДЛЯ КД ПОСЛЕ ВЫХОДА
+const scriptCache = new Collection(); 
+const leaveCooldowns = new Collection(); 
 let lastPicMessageId = null; 
 
 /**
@@ -332,7 +330,6 @@ function createPickEmbed(usersCount = 0, participantsArray = [], maxSlots = 6, c
     const isFull = usersCount >= maxSlots;
     let participantsString = '';
     
-    // Подготовка списка участников с отображением пустых слотов
     const displayList = [...participantsArray];
     while(displayList.length < maxSlots) displayList.push('Свободно');
     
@@ -363,9 +360,6 @@ function createPickEmbed(usersCount = 0, participantsArray = [], maxSlots = 6, c
     return { embeds: [embed], components: [row] };
 }
 
-/**
- * Функция для подключения бота к голосовому каналу по команде
- */
 function connectToVoice(channel) {
     if (!channel) return;
 
@@ -386,9 +380,7 @@ function connectToVoice(channel) {
                 await Promise.race([
                     new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000)),
                 ]);
-            } catch (error) {
-                // В этой версии мы не переподключаемся автоматически
-            }
+            } catch (error) {}
         });
     } catch (e) {
         console.error("Voice connection error:", e);
@@ -403,7 +395,6 @@ function connectToVoice(channel) {
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    // Текстовые команды через префикс 'f'
     if (message.content.startsWith('f ')) {
         const args = message.content.slice(2).trim().split(/ +/);
         const command = args.shift().toLowerCase();
@@ -542,7 +533,6 @@ client.on(Events.VoiceStateUpdate, async (oldS, newS) => {
  * ==============================================================================
  */
 client.once(Events.ClientReady, async (c) => {
-    // Подключаемся к базе, но не даем ей "подвесить" запуск бота
     if (process.env.MONGODB_URI) {
         mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
             .then(async () => {
@@ -850,6 +840,14 @@ client.on(Events.InteractionCreate, async (i) => {
                 await i.reply({ content: `Лимит: ${val}`, flags: [MessageFlags.Ephemeral] });
             }
         }
+        
+        if (i.customId === 'rn') {
+            const ownerId = privateVoices.get(i.channel.id);
+            if (ownerId !== i.user.id && !i.member.permissions.has(PermissionFlagsBits.Administrator)) return;
+            const name = i.fields.getTextInputValue('n');
+            await i.channel.setName(`☁️ ${name}`);
+            await i.reply({ content: `Название изменено на: ${name}`, flags: [MessageFlags.Ephemeral] });
+        }
     }
 
     if (i.isChatInputCommand()) {
@@ -1100,7 +1098,6 @@ client.on(Events.InteractionCreate, async (i) => {
 
                 const maxSlots = parseInt(msg.components[0].components[0].customId.split('_')[1]);
                 
-                // Освобождаем слот удаляемого игрока
                 const newUsers = users.map(line => line.includes(target.id) ? 'Свободно' : line);
                 const usersCount = newUsers.filter(u => u !== 'Свободно').length;
                 const finalUsers = usersCount === 0 ? [] : newUsers;
@@ -1133,17 +1130,14 @@ client.on(Events.InteractionCreate, async (i) => {
             
             let users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
 
-            // Проверка, не записан ли уже игрок
             if (users.some(u => u.includes(i.user.id))) {
                 return i.reply({ content: '❌ Вы уже заняли слот!', flags: [MessageFlags.Ephemeral] });
             }
 
-            // Проверка, не занято ли место, пока он выбирал
             if (users[selectedPoint] !== 'Свободно') {
                 return i.reply({ content: '❌ Ой, ты не успел! Это место уже заняли.', flags: [MessageFlags.Ephemeral] });
             }
 
-            // Занимаем слот
             users[selectedPoint] = `<@${i.user.id}>`;
             const usersCount = users.filter(u => u !== 'Свободно').length;
 
@@ -1262,7 +1256,6 @@ client.on(Events.InteractionCreate, async (i) => {
                 emoji = '💰';
             }
 
-            // Устанавливаем КД на 3 минуты (180000 мс)
             leaveCooldowns.set(i.user.id, Date.now() + 180000);
 
             const newData = createPickEmbed(usersCount, finalUsers, maxSlots, embed.description, label, emoji);
@@ -1270,7 +1263,6 @@ client.on(Events.InteractionCreate, async (i) => {
             await i.reply({ content: `Вы успешно покинули слот #${userIndex + 1}. Повторная запись доступна через 3 минуты.`, flags: [MessageFlags.Ephemeral] });
             return;
         } else if (i.customId.startsWith('btnopen_')) {
-            // Проверка КД
             const cooldown = leaveCooldowns.get(i.user.id);
             if (cooldown && cooldown > Date.now()) {
                 const timeLeft = Math.ceil((cooldown - Date.now()) / 1000);
@@ -1294,7 +1286,6 @@ client.on(Events.InteractionCreate, async (i) => {
                 return i.reply({ content: 'Вы уже записаны!', flags: [MessageFlags.Ephemeral] });
             }
 
-            // Создаем меню выбора точки
             const select = new StringSelectMenuBuilder()
                 .setCustomId(`sel_pick_${maxSlots}`)
                 .setPlaceholder('Выберите точку (1-6)');
@@ -1348,6 +1339,32 @@ client.on(Events.InteractionCreate, async (i) => {
             }
         }
     }
+
+    if (i.isUserSelectMenu()) {
+        const ownerId = privateVoices.get(i.channel.id);
+        if (ownerId !== i.user.id && !i.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return i.reply({ content: 'Нет доступа.', flags: [MessageFlags.Ephemeral] });
+        }
+
+        const target = i.members.first();
+        if (!target) return;
+
+        if (i.customId === 'sel_transfer') {
+            privateVoices.set(i.channel.id, target.id);
+            await i.reply({ content: `Права переданы <@${target.id}>`, flags: [MessageFlags.Ephemeral] });
+        } else if (i.customId === 'sel_kick') {
+            await i.channel.permissionOverwrites.create(target, { Connect: false });
+            if (target.voice.channelId === i.channel.id) await target.voice.disconnect();
+            await i.reply({ content: `<@${target.id}> забанен в канале.`, flags: [MessageFlags.Ephemeral] });
+        } else if (i.customId === 'sel_permit') {
+            await i.channel.permissionOverwrites.create(target, { Connect: true, Speak: true });
+            await i.reply({ content: `<@${target.id}> получил доступ.`, flags: [MessageFlags.Ephemeral] });
+        } else if (i.customId === 'sel_reject') {
+            await i.channel.permissionOverwrites.delete(target);
+            if (target.voice.channelId === i.channel.id) await target.voice.disconnect();
+            await i.reply({ content: `Доступ у <@${target.id}> отозван.`, flags: [MessageFlags.Ephemeral] });
+        }
+    }
 });
 
 client.on(Events.GuildMemberAdd, async (m) => {
@@ -1358,44 +1375,6 @@ client.on(Events.GuildMemberAdd, async (m) => {
     if (welcome) {
         const emb = new EmbedBuilder().setDescription(`**Дарова, <@${m.id}> залетай в войс** <:3221sparkles:1462803728687169606>`).setColor('#FF69B4');
         await welcome.send({ content: `<@${m.id}>`, embeds: [emb] });
-    }
-});
-
-client.on(Events.InteractionCreate, async (i) => {
-    if (!i.isUserSelectMenu()) return;
-    const ownerId = privateVoices.get(i.channel.id);
-    if (ownerId !== i.user.id && !i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        return i.reply({ content: 'Нет доступа.', flags: [MessageFlags.Ephemeral] });
-    }
-
-    const target = i.members.first();
-    if (!target) return;
-
-    if (i.customId === 'sel_transfer') {
-        privateVoices.set(i.channel.id, target.id);
-        await i.reply({ content: `Права переданы <@${target.id}>`, flags: [MessageFlags.Ephemeral] });
-    } else if (i.customId === 'sel_kick') {
-        await i.channel.permissionOverwrites.create(target, { Connect: false });
-        if (target.voice.channelId === i.channel.id) await target.voice.disconnect();
-        await i.reply({ content: `<@${target.id}> забанен в канале.`, flags: [MessageFlags.Ephemeral] });
-    } else if (i.customId === 'sel_permit') {
-        await i.channel.permissionOverwrites.create(target, { Connect: true, Speak: true });
-        await i.reply({ content: `<@${target.id}> получил доступ.`, flags: [MessageFlags.Ephemeral] });
-    } else if (i.customId === 'sel_reject') {
-        await i.channel.permissionOverwrites.delete(target);
-        if (target.voice.channelId === i.channel.id) await target.voice.disconnect();
-        await i.reply({ content: `Доступ у <@${target.id}> отозван.`, flags: [MessageFlags.Ephemeral] });
-    }
-});
-
-client.on(Events.InteractionCreate, async (i) => {
-    if (!i.isModalSubmit()) return;
-    if (i.customId === 'rn') {
-        const ownerId = privateVoices.get(i.channel.id);
-        if (ownerId !== i.user.id && !i.member.permissions.has(PermissionFlagsBits.Administrator)) return;
-        const name = i.fields.getTextInputValue('n');
-        await i.channel.setName(`☁️ ${name}`);
-        await i.reply({ content: `Название изменено на: ${name}`, flags: [MessageFlags.Ephemeral] });
     }
 });
 
