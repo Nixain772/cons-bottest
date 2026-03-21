@@ -1089,10 +1089,12 @@ client.on(Events.InteractionCreate, async (i) => {
             try {
                 const msg = await i.channel.messages.fetch(lastPicMessageId);
                 const embed = msg.embeds[0];
+                if (!embed || !embed.fields) return i.reply({ content: 'Ошибка структуры сообщения.', flags: [MessageFlags.Ephemeral] });
+
                 const field = embed.fields.find(f => f.name === 'Список участников:');
                 
                 let users = [];
-                if (field.value !== 'Пока никого...') {
+                if (field && field.value !== 'Пока никого...') {
                     users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
                 }
 
@@ -1126,8 +1128,14 @@ client.on(Events.InteractionCreate, async (i) => {
             
             const msg = i.message;
             const embed = msg.embeds[0];
-            const field = embed.fields.find(f => f.name === 'Список участников:');
             
+            if (!embed || !embed.fields) {
+                return i.reply({ content: '❌ Ошибка: не удалось прочитать данные сбора.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            const field = embed.fields.find(f => f.name === 'Список участников:');
+            if (!field) return i.reply({ content: '❌ Список участников не найден.', flags: [MessageFlags.Ephemeral] });
+
             let users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
 
             if (users.some(u => u.includes(i.user.id))) {
@@ -1234,6 +1242,8 @@ client.on(Events.InteractionCreate, async (i) => {
             const maxSlots = parseInt(i.customId.split('_')[1]);
             const embed = i.message.embeds[0];
 
+            if (!embed || !embed.fields) return i.reply({ content: 'Ошибка данных.', flags: [MessageFlags.Ephemeral] });
+
             const field = embed.fields.find(f => f.name === 'Список участников:');
             let users = [];
             if (field && field.value !== 'Пока никого...') {
@@ -1272,6 +1282,8 @@ client.on(Events.InteractionCreate, async (i) => {
             const maxSlots = parseInt(i.customId.split('_')[1]);
             const embed = i.message.embeds[0];
             
+            if (!embed || !embed.fields) return i.reply({ content: 'Ошибка данных сообщения.', flags: [MessageFlags.Ephemeral] });
+
             if (embed.description && embed.description.includes('финку')) {
                 const hasAccess = FINKA_ALLOWED_ROLES.some(rId => i.member.roles.cache.has(rId)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
                 if (!hasAccess) {
@@ -1288,7 +1300,7 @@ client.on(Events.InteractionCreate, async (i) => {
 
             const select = new StringSelectMenuBuilder()
                 .setCustomId(`sel_pick_${maxSlots}`)
-                .setPlaceholder('Выберите точку (1-6)');
+                .setPlaceholder(`Выберите точку (1-${maxSlots})`);
 
             for (let k = 0; k < maxSlots; k++) {
                 const isOccupied = users[k] !== 'Свободно';
