@@ -336,7 +336,10 @@ function createPickEmbed(usersCount = 0, participantsArray = [], maxSlots = 6, c
     const displayList = [...participantsArray];
     while(displayList.length < maxSlots) displayList.push('Свободно');
     
-    participantsString = displayList.map((user, index) => `${index + 1}. ${user}`).join('\n');
+    participantsString = displayList.map((user, index) => {
+        const status = user === 'Свободно' ? 'Свободно' : user;
+        return `${index + 1}. ${status}`;
+    }).join('\n');
 
     const embed = new EmbedBuilder()
         .setDescription(customText)
