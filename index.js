@@ -21,6 +21,7 @@ const {
     AuditLogEvent,
     ThreadAutoArchiveDuration,
     UserSelectMenuBuilder,
+    StringSelectMenuBuilder,
     ComponentType
 } = require('discord.js');
 const http = require('http');
@@ -212,7 +213,7 @@ http.createServer((req, res) => {
  */
 const ALLOWED_GUILDS = ['1465230913473478710', '1096080921427443832']; 
 const AUTO_ROLE_ID = '1391087961088721047'; 
-const MAIN_CHANNEL_ID = '1475812136424050738'; 
+const MAIN_CHANNEL_ID = '1426174226464899163'; 
 const MENTION_ROLE_ID = '1426222945705001262'; 
 const WELCOME_CHANNEL_ID = '1391856427508830289'; 
 const LOG_CHANNEL_ID = '1407346843372752927'; 
@@ -230,8 +231,8 @@ const ADMIN_ROLES = [
 
 const DEVELOPER_ID = '915665525634375710'; // ID разработчика для команды /sb
 
-const TARGET_HOUR = 8;    
-const TARGET_MINUTE = 12;  
+const TARGET_HOUR = 20;    
+const TARGET_MINUTE = 10;  
 const UTC_OFFSET = 3;     
 
 const FINKA_TARGET_HOUR = 23;    
@@ -329,9 +330,13 @@ function getEmojiData(emojiInput) {
 
 function createPickEmbed(usersCount = 0, participantsArray = [], maxSlots = 6, customText = '# ⛏️ **Подземная Шахта**\n\nОткрылась пикалка на подземную шахту.', btnLabel = 'Записаться', btnEmoji = '⛏️') {
     const isFull = usersCount >= maxSlots;
-    let participantsString = participantsArray.length > 0 
-        ? participantsArray.map((user, index) => `${index + 1}. ${user}`).join('\n') 
-        : 'Пока никого...';
+    let participantsString = '';
+    
+    // Подготовка списка участников с отображением пустых слотов
+    const displayList = [...participantsArray];
+    while(displayList.length < maxSlots) displayList.push('Свободно');
+    
+    participantsString = displayList.map((user, index) => `${index + 1}. ${user}`).join('\n');
 
     const embed = new EmbedBuilder()
         .setDescription(customText)
@@ -339,7 +344,7 @@ function createPickEmbed(usersCount = 0, participantsArray = [], maxSlots = 6, c
         .addFields({ name: 'Список участников:', value: participantsString });
 
     const button = new ButtonBuilder()
-        .setCustomId(`btn_${maxSlots}`) 
+        .setCustomId(`btnopen_${maxSlots}`) 
         .setEmoji(isFull ? '🚫' : getEmojiData(btnEmoji))
         .setStyle(isFull ? ButtonStyle.Secondary : ButtonStyle.Primary)
         .setDisabled(isFull)
@@ -845,10 +850,12 @@ client.on(Events.InteractionCreate, async (i) => {
     }
 
     if (i.isChatInputCommand()) {
-        if (i.commandName === 'fkick') {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ У вас нет доступа к этой команде.', flags: [MessageFlags.Ephemeral] });
+        const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
+        if (!isAdmin && i.user.id !== DEVELOPER_ID) {
+            return i.reply({ content: '⛔ У вас нет доступа к этой команде.', flags: [MessageFlags.Ephemeral] });
+        }
 
+        if (i.commandName === 'fkick') {
             const targetUser = i.options.getUser('user');
 
             const modal = new ModalBuilder()
@@ -887,10 +894,6 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.commandName === 'sb') {
-            if (i.user.id !== DEVELOPER_ID && !i.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return i.reply({ content: '⛔ У вас нет доступа.', flags: [MessageFlags.Ephemeral] });
-            }
-
             const targetCh = i.options.getChannel('target_channel');
             const r1 = i.options.getRole('role1');
             const r2 = i.options.getRole('role2');
@@ -993,9 +996,6 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.commandName === 'pay_list') {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ Нет доступа.', flags: [MessageFlags.Ephemeral] });
-
             const embed = new EmbedBuilder()
                 .setTitle(`💰 Список оплаты [${new Date().toLocaleDateString('ru-RU')}]`)
                 .setDescription('Пока пусто...')
@@ -1009,9 +1009,6 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.commandName === 'pay_add') {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ Нет доступа.', flags: [MessageFlags.Ephemeral] });
-
             if (!lastPayMessageId) return i.reply({ content: '❌ Сначала создайте список через `/pay_list`.', flags: [MessageFlags.Ephemeral] });
 
             const user = i.options.getUser('user');
@@ -1035,8 +1032,6 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.commandName === 'clear') {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ Нет доступа.', flags: [MessageFlags.Ephemeral] });
             const amount = i.options.getInteger('amount');
             if (amount < 1 || amount > 100) return i.reply({ content: 'Укажите число от 1 до 100.', flags: [MessageFlags.Ephemeral] });
             await i.channel.bulkDelete(amount, true);
@@ -1045,9 +1040,6 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.commandName === 'setup_voice') {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ Нет доступа.', flags: [MessageFlags.Ephemeral] });
-
             voiceTriggerId = i.options.getChannel('channel').id;
 
             const embed = new EmbedBuilder()
@@ -1090,9 +1082,6 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.commandName === 'clear_pic') {
-            const isAdmin = ADMIN_ROLES.some(r => i.member.roles.cache.has(r)) || i.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isAdmin) return i.reply({ content: '⛔ Нет доступа.', flags: [MessageFlags.Ephemeral] });
-
             if (!lastPicMessageId) return i.reply({ content: 'Сборы не найдены.', flags: [MessageFlags.Ephemeral] });
             const target = i.options.getUser('user');
 
@@ -1126,6 +1115,45 @@ client.on(Events.InteractionCreate, async (i) => {
             } catch (e) {
                 await i.reply({ content: 'Ошибка при обновлении сбора.', flags: [MessageFlags.Ephemeral] });
             }
+            return;
+        }
+    }
+
+    if (i.isStringSelectMenu()) {
+        if (i.customId.startsWith('sel_pick_')) {
+            const maxSlots = parseInt(i.customId.split('_')[2]);
+            const selectedPoint = parseInt(i.values[0]);
+            
+            const msg = i.message;
+            const embed = msg.embeds[0];
+            const field = embed.fields.find(f => f.name === 'Список участников:');
+            
+            let users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
+
+            // Проверка, не записан ли уже игрок
+            if (users.some(u => u.includes(i.user.id))) {
+                return i.reply({ content: '❌ Вы уже заняли слот!', flags: [MessageFlags.Ephemeral] });
+            }
+
+            // Проверка, не занято ли место, пока он выбирал
+            if (users[selectedPoint] !== 'Свободно') {
+                return i.reply({ content: '❌ Ой, ты не успел! Это место уже заняли.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            // Занимаем слот
+            users[selectedPoint] = `<@${i.user.id}>`;
+            const usersCount = users.filter(u => u !== 'Свободно').length;
+
+            let label = 'Пик слота';
+            let emoji = '⛏️';
+            if (embed.description && embed.description.includes('финку')) {
+                label = 'Занять слот';
+                emoji = '💰';
+            }
+
+            const newData = createPickEmbed(usersCount, users, maxSlots, embed.description, label, emoji);
+            await msg.edit(newData);
+            await i.reply({ content: `✅ Ты успешно занял точку #${selectedPoint + 1}!`, flags: [MessageFlags.Ephemeral] });
             return;
         }
     }
@@ -1238,7 +1266,7 @@ client.on(Events.InteractionCreate, async (i) => {
             await i.message.edit(newData);
             await i.reply({ content: `Вы успешно покинули слот #${userIndex + 1}. Повторная запись доступна через 3 минуты.`, flags: [MessageFlags.Ephemeral] });
             return;
-        } else if (i.customId.startsWith('btn_')) {
+        } else if (i.customId.startsWith('btnopen_')) {
             // Проверка КД
             const cooldown = leaveCooldowns.get(i.user.id);
             if (cooldown && cooldown > Date.now()) {
@@ -1257,46 +1285,29 @@ client.on(Events.InteractionCreate, async (i) => {
             }
 
             const field = embed.fields.find(f => f.name === 'Список участников:');
-            let users = [];
-            if (field.value !== 'Пока никого...') {
-                users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
-            }
-
-            // Дополняем массив до количества слотов
-            while (users.length < maxSlots) {
-                users.push('Свободно');
-            }
+            let users = field.value.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
 
             if (users.some(line => line.includes(i.user.id))) {
                 return i.reply({ content: 'Вы уже записаны!', flags: [MessageFlags.Ephemeral] });
             }
 
-            // Поиск доступных слотов
-            let availableIndexes = [];
-            users.forEach((u, idx) => {
-                if (u === 'Свободно') availableIndexes.push(idx);
-            });
+            // Создаем меню выбора точки
+            const select = new StringSelectMenuBuilder()
+                .setCustomId(`sel_pick_${maxSlots}`)
+                .setPlaceholder('Выберите точку (1-6)');
 
-            if (availableIndexes.length === 0) {
-                return i.reply({ content: 'Все места заняты!', flags: [MessageFlags.Ephemeral] });
+            for (let k = 0; k < maxSlots; k++) {
+                const isOccupied = users[k] !== 'Свободно';
+                select.addOptions({
+                    label: `Точка #${k + 1}`,
+                    value: `${k}`,
+                    description: isOccupied ? 'Занято игроком' : 'Свободно для выбора',
+                    emoji: isOccupied ? '🚫' : '📍'
+                });
             }
 
-            // Выбор случайного слота
-            const randomIdx = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
-            users[randomIdx] = `<@${i.user.id}>`;
-
-            const usersCount = users.filter(u => u !== 'Свободно').length;
-            
-            let label = 'Пик слота';
-            let emoji = '⛏️';
-            if (embed.description && embed.description.includes('финку')) {
-                label = 'Занять слот';
-                emoji = '💰';
-            }
-
-            const newData = createPickEmbed(usersCount, users, maxSlots, embed.description, label, emoji);
-            await i.message.edit(newData);
-            await i.reply({ content: `Вы успешно заняли слот #${randomIdx + 1}!`, flags: [MessageFlags.Ephemeral] });
+            const row = new ActionRowBuilder().addComponents(select);
+            await i.reply({ content: 'Выберите точку на карте:', components: [row], flags: [MessageFlags.Ephemeral] });
             return;
         }
 
